@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title></title>
+</head>
+
+<body>
+	
+	<style type="text/css">
+		#ocean {
+			background-image: url(ocean.jpg);
+			width: 900px;
+			height: 700px;
+		}
+
+		.player {
+			width: 70px;
+			height: 75px;
+			background-image: url("player.png");
+			position: absolute;
+		}
+
+		.enemy {
+			width: 70px;
+			height: 75px;
+			background-image: url("enemy.png");
+			background-size: contain;
+			position: absolute;
+		}
+
+		.explosion {
+			width: 70px;
+			height: 70px;
+			background-image: url("fire.gif");
+			background-size: contain;
+			position: absolute;
+		}
+
+		.missile {
+			width: 20px;
+			height: 20px;
+			background-image: url("fire.gif");
+			background-size: contain;
+			position: absolute;
+		}
+
+		.healthbar {
+			height: 20px;
+			width: 200px;
+			background-color: tomato;
+		}
+	</style>
+	<div id="ocean">
+		<div id="players"></div>
+		<div id="enemies"></div>
+		<div id="missiles"></div>
+		<div id="explosions"></div>
+		<div id="health"></div>
+
+	</div>
+
+	<script type="text/javascript">
+		//global variables used to track game state
+		var gamestart = false;
+		var win = false;
+		var dead = false;
+		var gameover = false;
+		var round = 1;
+		var beat1 = false;
+		var beat2 = false;
+		var beat3 = false;
+		var player = {
+			left: 450,
+			top: 620,
+			health: 100
+		}
+
+		//arrays of objects -- each object has a left and top, where we will position an enemey
+		var enemies = [
+			{ left: 350, top: 200 },
+			{ left: 450, top: 250 },
+			{ left: 300, top: 400 },
+			{ left: 500, top: 100 },
+			{ left: 200, top: 300 },
+			{ left: 700, top: 100 }
+
+		]
+		var roundOne = [
+			{ left: 350, top: 200 },
+			{ left: 450, top: 250 },
+			{ left: 300, top: 400 },
+			{ left: 500, top: 100 },
+			{ left: 200, top: 300 },
+			{ left: 700, top: 100 }
+
+		]
+		var roundTwo = [
+			{ left: 70, top: 0 },
+			{ left: 140, top: 70 },
+			{ left: 210, top: 140 },
+			{ left: 280, top: 210 },
+			{ left: 350, top: 280 },
+			{ left: 420, top: 350 },
+			{ left: 490, top: 420 }
+		]
+
+		var roundThree = [
+			{ left: 70, top: 0 },
+			{ left: 140, top: 0 },
+			{ left: 210, top: 0 },
+			{ left: 280, top: 0 },
+			{ left: 350, top: 0 },
+			{ left: 420, top: 0 },
+			{ left: 490, top: 0 },
+			{ left: 560, top: 0},
+			{ left: 630, top: 0},
+			{ left: 700, top: 0},
+			{ left: 70, top: 80 },
+			{ left: 140, top: 80 },
+			{ left: 210, top: 80 },
+			{ left: 280, top: 80 },
+			{ left: 350, top: 80 },
+			{ left: 420, top: 80 },
+			{ left: 490, top: 80 },
+			{ left: 560, top: 80},
+			{ left: 630, top: 80},
+			{ left: 700, top: 80}
+		]
+
+		//currently fired missiles
+		var missiles = [];
+
+		//currently burning explosions
+		var explosions = [];
+
+		//function for creating random set of enemies
+		function generateEnemies(){ 
+			generatedEnemies = [];
+			for (let i = 0; i <20; i++){
+				var leftRand = Math.random()*700;
+				var topRand = Math.random()*300;
+				generatedEnemies.push({left: leftRand, top: topRand})
+
+			}
+			return generatedEnemies;
+		}
+
+		//event listener - listens for keypresses and responds accordingly
+		//TODO: FIX MOVEMENT
+		document.onkeydown = function (e) {
+			console.log("Keycode pressed: "+ e.keyCode)
+
+			//moves us left if we press the left arrow
+			if (e.keyCode == 37 && player.left > 0 && dead == false) {//left
+				player.left = player.left - 10;
+			}
+
+			//moves us up if we press the up arrow
+			if (e.keyCode == 38 && player.top > 400 && dead == false) {//up
+				player.top -= 10;
+			}
+
+			//TODO FINISH RIGHT MOVEMENT
+			if (e.keyCode == 39 && player.left < 780 && dead == false) {//right				
+				// **TODO** How would we move right?
+			}
+
+			//TODO FINISH DOWN MOVEMENT Hint: check the console when you press the down arrow for the keyCode
+			// if (e.keyCode == /* what is the key code for down? */ && player.top < 588 && dead == false) {//up
+			// 	player.top += 10;
+			// }
+
+			if (e.keyCode == 32 && gamestart == true && dead == false) {
+				fireMissile();
+				drawMissiles();
+			}
+
+			//starts the game if the 's' key is pressed
+			if (e.keyCode == 83) {
+				if (!gamestart) { 
+					gameLoop(); //run our gameLoop, the main function of our game
+					gamestart = true; //set gamestart to true so if we accidentally press s again, nothing happens
+				}
+				if (dead){ //if we have died, pressing s resets game 
+					player.health = 100;
+					enemies = roundOne;
+					explosions = [];
+					drawEnemies();					
+					gameover = false;
+					dead = false;
+					round = 1;
+				}
+			}
+			drawPlayer(); // we call our draw player here because its position may be updated after a keypress
+		}
+		
+		/* INITIAL CALLS (run once) */
+		drawEnemies();
+		drawPlayer();
+		alert("Welcome! Arrows to move. Space to fire. 's' to start");
+
+		/*GAME LOOP*/
+		function gameLoop() {
+			checkWinLose(); //see if we've lost
+			drawPlayer(); //update our player's position
+			drawHealth(); //update our health bar
+			moveEnemies(); //move enemies down
+			drawEnemies(); //redraw enemies
+			moveMissiles(); //move missiles up
+			drawMissiles(); // redraw missiles
+			blowUpShips(); // detect collisions between ships and missiles
+			damagePlayer(); // detect collision between player and ships
+			drawExplosions(); // draw all our explosions
+			advanceRound(); // if all enemies are dead, move to next round
+			setTimeout(gameLoop, 100); //rerun this loop in 100ms
+		}
+		
+		/* GAME FUNCTIONS 
+			functions used by the game and helper functions for those functions
+		*/
+
+		function checkWinLose() {
+			//advances round if we have defeated all enemies, waits for our explosions to clear for dramatic effect
+			if (enemies.length == 0 && win == false && explosions.length == 0) {
+				round++;
+			}
+			if (dead == true && gameover == false) {
+				message = "oops u ded, survived " + (round-1) + " round(s) -- press s to try again";
+				alert(message);
+				gameover = true;
+				round = 0;
+			}
+		}
+
+		//function draws player to the screen
+		function drawPlayer() {
+			content = "";
+			if (!dead) {
+				content = "<div class='player' style='left:" + player.left + "px; top:" + player.top + "px'></div>"
+			}
+			document.getElementById("players").innerHTML = content;
+			
+		}
+		
+		//function draws health bar based on player's current health
+		function drawHealth() {
+			content = ""
+			if (!dead) {
+				content = "<div class='healthbar' style='width:" + player.health * 9 + "px'></div>"
+			}
+			document.getElementById("health").innerHTML = content;
+		}
+
+		//function moves enemies downward
+		function moveEnemies() {
+			for (let i = 0; i < enemies.length; i++) {
+				enemies[i].top = enemies[i].top < 625 ? enemies[i].top + 5 : 0;
+			}
+		}
+
+		//function draws enemies to the screen
+		function drawEnemies() {
+			content = "";
+			for (let i = 0; i < enemies.length; i++) {
+				content += "<div class='enemy' style='left:" + enemies[i].left + "px; top:" + enemies[i].top + "px'></div>"
+			}
+			document.getElementById("enemies").innerHTML = content;
+		}
+
+		//function to update missiles position (move up)
+		function moveMissiles() {
+			if (missiles.length > 0) {
+				for (let i = 0; i < missiles.length; i++) {
+					missiles[i].top -= 30;
+				}
+
+			}
+		}
+		
+		//function to draw all missiles on the screen
+		function drawMissiles() {
+			content = "";
+			for (let i = 0; i < missiles.length; i++) {
+				content += "<div class='missile' style='left:" + missiles[i].left + "px; top:" + missiles[i].top + "px'></div>"
+			}
+			document.getElementById("missiles").innerHTML = content;
+		}
+
+		//function adds a missile to the missile array -- called on spacebar press
+		function fireMissile() {
+			missiles.push({ left: player.left + 35, top: player.top - 8 });
+		}
+
+		//function to draw all explosions on the screen
+		function drawExplosions() {
+			content = "";
+			for (let i = 0; i < explosions.length; i++) {
+				content += "<div class='explosion' style='left:" + explosions[i].left + "px; top:" + explosions[i].top + "px'></div>"
+			}
+			document.getElementById("explosions").innerHTML = content;
+		}
+		
+		//function detects collisions between missiles and enemies
+		// removes enemie and adds explosion in its spot
+		function blowUpShips() {
+			for (var mis = 0; mis < missiles.length; mis++) {
+				for (var enem = 0; enem < enemies.length; enem++) {
+					if (missileHit(missiles[mis], enemies[enem])) { //calls helper function to check for collision
+						var explosionLeft = enemies[enem].left;
+						var explosionTop = enemies[enem].top;
+						explosions.push({ left: explosionLeft, top: explosionTop });
+						setTimeout(clearOldestExplosion, 2000); // in 2 seconds, delete the oldest explosion off the screen
+						enemies.splice(enem, 1);
+						missiles.splice(mis, 1);
+						break;
+					}
+				}
+			}
+		}
+
+		//helper function that detects collision between missile and enemy
+		function missileHit(missile, enemy) {
+			var missileLeft = missile.left;
+			var missileRight = missile.left + 20;
+			var enemyLeft = enemy.left;
+			var enemyRight = enemy.left + 70;
+
+			var missileTop = missile.top;
+			var missileBottom = missile.top + 20;
+			var enemyTop = enemy.top;
+			var enemyBottom = enemy.top + 75;
+			var xmatch = false;
+			var ymatch = false;
+
+			if (((missileLeft <= enemyRight) && (missileLeft >= enemyLeft)) ||
+			((missileRight >= enemyLeft) && (missileRight <= enemyRight))) {
+				xmatch = true;
+			}
+			if ((missileTop <= enemyBottom && missileTop >= enemyTop)||(missileBottom >= enemyTop && missileBottom <= enemyBottom)){
+				ymatch = true;
+			}
+			return (xmatch&&ymatch);
+		}
+
+		//helper function removes oldest explosion
+		function clearOldestExplosion() {
+			explosions.splice(0, 1);
+		}
+
+		//function for damaging player if they're crashing into an enemy
+		function damagePlayer() {
+			for (let i = 0; i < enemies.length; i++) {
+				if (enemyHitPlayer(enemies[i])) {
+					player.health--;
+				}
+				if (player.health <= 0 && gameover == false) {
+					dead = true;
+					explosions.push({ left: player.left, top: player.top });
+				}
+			}
+		}
+
+		//helper function for detecting collisions between enemies and player
+		function enemyHitPlayer(enemy) {
+			var enemyTop = enemy.top;
+			var enemyLeft = enemy.left;
+			var enemyRight = enemy.left + 70;
+			var enemyBottom = enemy.top + 75;
+
+			var playerTop = player.top;
+			var playerBottom = player.top + 112;
+			var playerLeft = player.left;
+			var playerRight = player.left + 112;
+			var xmatch = false;
+			var ymatch = false;
+
+			if (((enemyLeft <= playerRight) && (enemyLeft >= playerLeft)) || ((enemyRight >= playerLeft)&&(enemyRight <= playerRight))) {
+				xmatch = true;
+			}
+			if (((enemyTop >= playerTop)&&(enemyTop <= playerBottom)) || ((enemyBottom >= playerTop)&&(enemyBottom <= playerBottom))){
+				ymatch = true;
+			}
+			return xmatch&&ymatch;
+		}
+		
+		//this function gets the right enemies based on round and moves 
+		function advanceRound() {
+			if (round == 2 && enemies.length == 0 && explosions.length == 0) {
+				enemies = roundTwo;
+				beat1 = true;
+			}
+			if (round == 3 && enemies.length == 0 && explosions.length == 0) {
+				enemies = roundThree;
+				beat2 = true;
+			}
+			if (round >= 4 && enemies.length == 0 && explosions.length == 0){
+				enemies = generateEnemies();
+			}
+		}
+	</script>
+</body>
+
+</html>
